@@ -9,7 +9,7 @@ import (
 	"go.llib.dev/frameless/port/migration"
 )
 
-func makeMigrator(conn Connection, namespace string, steps migration.Steps[Connection]) migration.Migrator[Connection] {
+func MakeMigrator(conn Connection, namespace string, steps migration.Steps[Connection]) migration.Migrator[Connection] {
 	return migration.Migrator[Connection]{
 		Namespace:       namespace,
 		Resource:        conn,

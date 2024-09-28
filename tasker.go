@@ -81,7 +81,7 @@ var taskerScheduleStateRepositoryMapping = flsql.Mapping[tasker.ScheduleState, t
 }
 
 func (r TaskerScheduleStateRepository) Migrate(ctx context.Context) error {
-	return makeMigrator(r.Connection, "frameless_tasker_schedule_states", migration.Steps[Connection]{
+	return MakeMigrator(r.Connection, "frameless_tasker_schedule_states", migration.Steps[Connection]{
 		"0": flsql.MigrationStep[Connection]{
 			UpQuery:   "CREATE TABLE IF NOT EXISTS frameless_tasker_schedule_states ( id TEXT PRIMARY KEY, timestamp TIMESTAMP WITH TIME ZONE NOT NULL );",
 			DownQuery: "DROP TABLE IF EXISTS frameless_tasker_schedule_states;",

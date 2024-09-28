@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS ` + queueTableName + ` (
 ;`
 
 func (q Queue[Entity, JSONDTO]) Migrate(ctx context.Context) error {
-	return makeMigrator(q.Connection, queueTableName, migration.Steps[Connection]{
+	return MakeMigrator(q.Connection, queueTableName, migration.Steps[Connection]{
 		"0": flsql.MigrationStep[Connection]{UpQuery: queryCreateQueueTable},
 	}).Migrate(ctx)
 }

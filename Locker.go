@@ -103,7 +103,7 @@ CREATE VIEW "frameless_locker_locks" AS SELECT * FROM "frameless_guard_locks";
 `
 
 func (l Locker) Migrate(ctx context.Context) error {
-	return makeMigrator(l.Connection, "frameless_locker_locks", migration.Steps[Connection]{
+	return MakeMigrator(l.Connection, "frameless_locker_locks", migration.Steps[Connection]{
 		"1": flsql.MigrationStep[Connection]{UpQuery: queryCreateLockerTable},
 		"2": flsql.MigrationStep[Connection]{UpQuery: queryRenameLockerTable},
 	}).Migrate(ctx)

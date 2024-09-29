@@ -58,7 +58,7 @@ func NewMigrationStateRepository(conn Connection) Repository[migration.State, mi
 				}, nil
 			},
 
-			CreatePrepare: func(ctx context.Context, s *migration.State) error {
+			Prepare: func(ctx context.Context, s *migration.State) error {
 				if s.ID.Namespace == "" {
 					return fmt.Errorf("MigrationStateRepository requires a non-empty namespace for Create")
 				}

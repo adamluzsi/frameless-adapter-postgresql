@@ -53,7 +53,7 @@ func (r Repository[ENT, ID]) Create(ctx context.Context, ptr *ENT) (rErr error) 
 	}
 
 	// TODO: add serialize TX level here
-	if err := r.Mapping.OnCreate(ctx, ptr); err != nil {
+	if err := r.Mapping.OnPrepare(ctx, ptr); err != nil {
 		return err
 	}
 

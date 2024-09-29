@@ -98,7 +98,7 @@ func (cr FooCacheRepository) Entities() cache.EntityRepository[testent.Foo, test
 				}, nil
 			},
 
-			CreatePrepare: func(ctx context.Context, f *testent.Foo) error {
+			Prepare: func(ctx context.Context, f *testent.Foo) error {
 				if zerokit.IsZero(f.ID) {
 					f.ID = testent.FooID(random.New(random.CryptoSeed{}).UUID())
 				}

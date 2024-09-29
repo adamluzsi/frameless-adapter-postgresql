@@ -68,7 +68,7 @@ var taskerScheduleStateRepositoryMapping = flsql.Mapping[tasker.ScheduleState, t
 		}, nil
 	},
 
-	CreatePrepare: func(ctx context.Context, s *tasker.ScheduleState) error {
+	Prepare: func(ctx context.Context, s *tasker.ScheduleState) error {
 		if s.ID == "" {
 			return fmt.Errorf("tasker.ScheduleState.ID is required to be supplied externally")
 		}

@@ -10,33 +10,23 @@ import (
 	"go.llib.dev/frameless/port/migration"
 )
 
-type TaskerScheduleRepository struct{ Connection Connection }
+type TaskerSchedulerLocks struct{ Connection Connection }
 
-func (r TaskerScheduleRepository) Migrate(ctx context.Context) error {
-	if m, ok := r.States().(migration.Migratable); ok {
-		if err := m.Migrate(ctx); err != nil {
-			return err
-		}
-	}
-	if m, ok := r.Locks().(migration.Migratable); ok {
-		if err := m.Migrate(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
+func (lf TaskerSchedulerLocks) factory() LockerFactory[tasker.ScheduleStateID] {
+	return LockerFactory[tasker.ScheduleStateID]{Connection: lf.Connection}
 }
 
-func (r TaskerScheduleRepository) Locks() guard.LockerFactory[tasker.ScheduleStateID] {
-	return LockerFactory[tasker.ScheduleStateID]{Connection: r.Connection}
+func (lf TaskerSchedulerLocks) LockerFor(id tasker.ScheduleStateID) guard.Locker {
+	return lf.factory().LockerFor(id)
 }
 
-func (r TaskerScheduleRepository) States() tasker.ScheduleStateRepository {
-	return TaskerScheduleStateRepository{Connection: r.Connection}
+func (lf TaskerSchedulerLocks) Migrate(ctx context.Context) error {
+	return lf.factory().Migrate(ctx)
 }
 
-type TaskerScheduleStateRepository struct{ Connection Connection }
+type TaskerSchedulerStateRepository struct{ Connection Connection }
 
-func (r TaskerScheduleStateRepository) repository() Repository[tasker.ScheduleState, tasker.ScheduleStateID] {
+func (r TaskerSchedulerStateRepository) repository() Repository[tasker.ScheduleState, tasker.ScheduleStateID] {
 	return Repository[tasker.ScheduleState, tasker.ScheduleStateID]{
 		Mapping:    taskerScheduleStateRepositoryMapping,
 		Connection: r.Connection,
@@ -80,7 +70,7 @@ var taskerScheduleStateRepositoryMapping = flsql.Mapping[tasker.ScheduleState, t
 	},
 }
 
-func (r TaskerScheduleStateRepository) Migrate(ctx context.Context) error {
+func (r TaskerSchedulerStateRepository) Migrate(ctx context.Context) error {
 	return MakeMigrator(r.Connection, "frameless_tasker_schedule_states", migration.Steps[Connection]{
 		"0": flsql.MigrationStep[Connection]{
 			UpQuery:   "CREATE TABLE IF NOT EXISTS frameless_tasker_schedule_states ( id TEXT PRIMARY KEY, timestamp TIMESTAMP WITH TIME ZONE NOT NULL );",
@@ -89,18 +79,18 @@ func (r TaskerScheduleStateRepository) Migrate(ctx context.Context) error {
 	}).Migrate(ctx)
 }
 
-func (r TaskerScheduleStateRepository) Create(ctx context.Context, ptr *tasker.ScheduleState) error {
+func (r TaskerSchedulerStateRepository) Create(ctx context.Context, ptr *tasker.ScheduleState) error {
 	return r.repository().Create(ctx, ptr)
 }
 
-func (r TaskerScheduleStateRepository) Update(ctx context.Context, ptr *tasker.ScheduleState) error {
+func (r TaskerSchedulerStateRepository) Update(ctx context.Context, ptr *tasker.ScheduleState) error {
 	return r.repository().Update(ctx, ptr)
 }
 
-func (r TaskerScheduleStateRepository) DeleteByID(ctx context.Context, id tasker.ScheduleStateID) error {
+func (r TaskerSchedulerStateRepository) DeleteByID(ctx context.Context, id tasker.ScheduleStateID) error {
 	return r.repository().DeleteByID(ctx, id)
 }
 
-func (r TaskerScheduleStateRepository) FindByID(ctx context.Context, id tasker.ScheduleStateID) (ent tasker.ScheduleState, found bool, err error) {
+func (r TaskerSchedulerStateRepository) FindByID(ctx context.Context, id tasker.ScheduleStateID) (ent tasker.ScheduleState, found bool, err error) {
 	return r.repository().FindByID(ctx, id)
 }

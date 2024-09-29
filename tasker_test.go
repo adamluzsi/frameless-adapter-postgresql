@@ -14,9 +14,16 @@ import (
 
 func TestTaskerScheduleRepository(t *testing.T) {
 	cm := GetConnection(t)
-	repo := &postgresql.TaskerScheduleRepository{Connection: cm}
-	assert.NoError(t, repo.Migrate(context.Background()))
-	taskercontracts.Repository(repo).Test(t)
+	ctx := context.Background()
+
+	stateRepo := postgresql.TaskerSchedulerStateRepository{Connection: cm}
+	assert.NoError(t, stateRepo.Migrate(ctx))
+
+	locks := postgresql.TaskerSchedulerLocks{Connection: cm}
+	assert.NoError(t, locks.Migrate(ctx))
+
+	taskercontracts.SchedulerStateRepository(stateRepo).Test(t)
+	taskercontracts.SchedulerLocks(locks).Test(t)
 }
 
 func ExampleTaskerScheduleRepository() {
@@ -26,7 +33,8 @@ func ExampleTaskerScheduleRepository() {
 	}
 
 	s := tasker.Scheduler{
-		Repository: postgresql.TaskerScheduleRepository{Connection: c},
+		Locks:           postgresql.TaskerSchedulerLocks{Connection: c},
+		StateRepository: postgresql.TaskerSchedulerStateRepository{Connection: c},
 	}
 
 	maintenance := s.WithSchedule("maintenance", tasker.Monthly{Day: 1, Hour: 12, Location: time.UTC},

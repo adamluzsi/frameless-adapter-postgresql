@@ -2,6 +2,8 @@ package postgresql_test
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -19,6 +21,41 @@ import (
 )
 
 var _ migration.Migratable = postgresql.Queue[Entity, EntityDTO]{}
+
+func ExampleQueue() {
+
+	cm, err := postgresql.Connect(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		panic(err)
+	}
+	defer cm.Close()
+
+	q := postgresql.Queue[Entity, EntityDTO]{
+		Name:       "queue_name",
+		Connection: cm,
+		Mapping:    EntityJSONMapping{},
+	}
+
+	ctx := context.Background()
+	ent := Entity{Foo: "foo"}
+
+	err = q.Publish(ctx, ent)
+	if err != nil {
+		panic(err)
+	}
+
+	entitiesIter, err := q.Subscribe(ctx)
+	if err != nil {
+		panic(err)
+	}
+	defer entitiesIter.Close()
+
+	for entitiesIter.Next() {
+		msg := entitiesIter.Value()
+		fmt.Println(msg.Data())
+		_ = msg.ACK()
+	}
+}
 
 func TestQueue(t *testing.T) {
 	const queueName = "test_entity"

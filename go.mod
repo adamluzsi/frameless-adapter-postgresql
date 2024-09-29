@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/jackc/pgx/v5 v5.6.0
-	go.llib.dev/frameless v0.244.3
+	go.llib.dev/frameless v0.245.0
 	go.llib.dev/testcase v0.163.0
 )
 

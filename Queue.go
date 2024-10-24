@@ -263,6 +263,10 @@ type queueMessage[Entity, JSONDTO any] struct {
 	data Entity
 }
 
+func (qm queueMessage[Entity, JSONDTO]) Context() context.Context {
+	return qm.tx
+}
+
 func (qm queueMessage[Entity, JSONDTO]) ACK() error {
 	// when context cancellation happens,
 	// the already received message should be still ACK able

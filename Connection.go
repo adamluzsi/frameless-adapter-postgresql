@@ -6,10 +6,13 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.llib.dev/frameless/pkg/contextkit"
 	"go.llib.dev/frameless/pkg/flsql"
 )
 
-type Connection = flsql.ConnectionAdapter[pgxpool.Pool, pgx.Tx]
+type Connection struct {
+	flsql.ConnectionAdapter[pgxpool.Pool, pgx.Tx]
+}
 
 func Connect(dsn string) (Connection, error) {
 	pool, err := pgxpool.New(context.Background(), dsn)
@@ -17,37 +20,51 @@ func Connect(dsn string) (Connection, error) {
 		return Connection{}, err
 	}
 	return Connection{
-		DB: pool,
+		ConnectionAdapter: flsql.ConnectionAdapter[pgxpool.Pool, pgx.Tx]{
+			DB: pool,
 
-		DBAdapter: func(db *pgxpool.Pool) flsql.Queryable {
-			return pgxQueryableAdapter[*pgxpool.Pool]{Q: db}
-		},
-		TxAdapter: func(tx *pgx.Tx) flsql.Queryable {
-			return pgxQueryableAdapter[pgx.Tx]{Q: *tx}
-		},
+			DBAdapter: func(db *pgxpool.Pool) flsql.Queryable {
+				return pgxQueryableAdapter[*pgxpool.Pool]{Q: db}
+			},
+			TxAdapter: func(tx *pgx.Tx) flsql.Queryable {
+				return pgxQueryableAdapter[pgx.Tx]{Q: *tx}
+			},
 
-		Begin: func(ctx context.Context, db *pgxpool.Pool) (*pgx.Tx, error) {
-			tx, err := db.Begin(ctx)
-			if err != nil {
-				return nil, err
-			}
-			return &tx, nil
-		},
+			Begin: func(ctx context.Context, db *pgxpool.Pool) (*pgx.Tx, error) {
+				var (
+					tx  pgx.Tx
+					err error
+				)
+				if opts, ok := ContextTxOptions.Lookup(ctx); ok {
+					tx, err = db.BeginTx(ctx, opts)
+				} else {
+					tx, err = db.Begin(ctx)
+				}
+				if err != nil {
+					return nil, err
+				}
+				return &tx, nil
+			},
 
-		Commit: func(ctx context.Context, tx *pgx.Tx) error {
-			return (*tx).Commit(ctx)
-		},
+			Commit: func(ctx context.Context, tx *pgx.Tx) error {
+				return (*tx).Commit(ctx)
+			},
 
-		Rollback: func(ctx context.Context, tx *pgx.Tx) error {
-			return (*tx).Rollback(ctx)
-		},
+			Rollback: func(ctx context.Context, tx *pgx.Tx) error {
+				return (*tx).Rollback(ctx)
+			},
 
-		OnClose: func() error {
-			pool.Close()
-			return nil
+			OnClose: func() error {
+				pool.Close()
+				return nil
+			},
 		},
 	}, nil
 }
+
+var ContextTxOptions contextkit.ValueHandler[ctxKeyTxOptions, pgx.TxOptions]
+
+type ctxKeyTxOptions struct{}
 
 type pgxQueryableAdapter[Q pgxQueryable] struct{ Q Q }
 

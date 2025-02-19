@@ -45,10 +45,9 @@ func (r Repository[ENT, ID]) Create(ctx context.Context, ptr *ENT) (rErr error) 
 			return err
 		}
 		if found {
-			return errorkit.With(crud.ErrAlreadyExists).
-				Detailf(`%T already exists with id: %v`, *new(ENT), id).
-				Context(ctx).
-				Unwrap()
+			err := crud.ErrAlreadyExists.F(`%T already exists with id: %v`, *new(ENT), id)
+			err = errorkit.WithContext(err, ctx)
+			return err
 		}
 	}
 

@@ -7,7 +7,6 @@ import (
 	"go.llib.dev/testcase/assert"
 	"go.llib.dev/testcase/random"
 
-	"go.llib.dev/frameless/adapter/memory"
 	"go.llib.dev/frameless/adapter/postgresql"
 	"go.llib.dev/frameless/pkg/cache"
 	"go.llib.dev/frameless/pkg/cache/cachecontracts"
@@ -21,18 +20,10 @@ func TestRepository_cache(t *testing.T) {
 	logger.Testing(t)
 
 	cm := GetConnection(t)
-	src := memory.NewRepository[testent.Foo, testent.FooID](memory.NewMemory())
 	chcRepo := FooCacheRepository{Connection: cm}
-
 	MigrateFooCache(t, cm)
 
-	chc := &cache.Cache[testent.Foo, testent.FooID]{
-		Source:                  src,
-		Repository:              chcRepo,
-		CachedQueryInvalidators: nil,
-	}
-
-	cachecontracts.Cache[testent.Foo, testent.FooID](chc, src, chcRepo).Test(t)
+	cachecontracts.Cache[testent.Foo, testent.FooID](chcRepo).Test(t)
 }
 
 func MigrateFooCache(tb testing.TB, c postgresql.Connection) {

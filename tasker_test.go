@@ -20,21 +20,20 @@ func TestTaskerScheduleRepository(t *testing.T) {
 	assert.NoError(t, stateRepo.Migrate(ctx))
 
 	locks := postgresql.TaskerSchedulerLocks{Connection: cm}
-	assert.NoError(t, locks.Migrate(ctx))
 
-	taskercontracts.SchedulerStateRepository(stateRepo).Test(t)
+	taskercontracts.ScheduleStateRepository(stateRepo).Test(t)
 	taskercontracts.SchedulerLocks(locks).Test(t)
 }
 
-func ExampleTaskerScheduleRepository() {
+func ExampleTaskerSchedulerStateRepository() {
 	c, err := postgresql.Connect(os.Getenv("DATABASE_URL"))
 	if err != nil {
 		panic(err.Error())
 	}
 
 	s := tasker.Scheduler{
-		Locks:           postgresql.TaskerSchedulerLocks{Connection: c},
-		StateRepository: postgresql.TaskerSchedulerStateRepository{Connection: c},
+		Locks:  postgresql.TaskerSchedulerLocks{Connection: c},
+		States: postgresql.TaskerSchedulerStateRepository{Connection: c},
 	}
 
 	maintenance := s.WithSchedule("maintenance", tasker.Monthly{Day: 1, Hour: 12, Location: time.UTC},

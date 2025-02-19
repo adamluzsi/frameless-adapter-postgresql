@@ -6,6 +6,10 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"go.llib.dev/frameless/pkg/contextkit"
+	"go.llib.dev/frameless/pkg/errorkit"
 	"go.llib.dev/frameless/pkg/flsql"
 	"go.llib.dev/frameless/port/guard"
 	"go.llib.dev/frameless/port/migration"
@@ -22,63 +26,89 @@ type Locker struct {
 
 const queryLock = `INSERT INTO frameless_locker_locks (name) VALUES ($1);`
 
+func (l Locker) TryLock(ctx context.Context) (_ context.Context, _ bool, rerr error) {
+	if ctx == nil {
+		return nil, false, fmt.Errorf("missing context.Context")
+	}
+
+	if _, ok := lockctx.Lookup(ctx); ok {
+		return ctx, true, nil
+	}
+
+	tx, err := l.beginLockTx(ctx)
+	if err != nil {
+		return nil, false, err
+	}
+	defer errorkit.FinishOnError(&rerr,
+		func() { tx.Rollback(ctx) })
+
+	_, err = tx.Exec(ctx, `SET LOCAL lock_timeout = 1;`)
+	if err != nil {
+		return nil, false, err
+	}
+
+	_, err = tx.Exec(ctx, queryLock, l.Name)
+	if err != nil {
+		const LockTimeoutErrorCode = "55P03"
+		if pgErr, ok := errorkit.As[*pgconn.PgError](err); ok && pgErr.Code == LockTimeoutErrorCode {
+			_ = tx.Rollback(ctx)
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+
+	return l.lockContext(ctx, tx), true, nil
+}
+
 func (l Locker) Lock(ctx context.Context) (context.Context, error) {
 	if ctx == nil {
 		return nil, fmt.Errorf("missing context.Context")
 	}
 
-	if _, ok := l.lookup(ctx); ok {
+	if _, ok := lockctx.Lookup(ctx); ok {
 		return ctx, nil
 	}
 
-	ctx, err := l.Connection.BeginTx(ctx)
+	tx, err := l.beginLockTx(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	_, err = l.Connection.ExecContext(ctx, queryLock, l.Name)
+	_, err = tx.Exec(ctx, queryLock, l.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-
-	lck := &lockerCtxValue{
-		ctx:        ctx,
-		cancel:     cancel,
-		Connection: l.Connection,
-	}
-	context.AfterFunc(ctx, func() {
-		_ = lck.Unclock(ctx)
-	})
-	return context.WithValue(ctx, lockerCtxKey{}, lck), nil
+	return l.lockContext(ctx, tx), nil
 }
 
 func (l Locker) Unlock(ctx context.Context) error {
 	if ctx == nil {
 		return guard.ErrNoLock
 	}
-	lck, ok := l.lookup(ctx)
+	lck, ok := lockctx.Lookup(ctx)
 	if !ok {
 		return guard.ErrNoLock
 	}
 	return lck.Unclock(ctx)
 }
 
-type (
-	lockerCtxKey   struct{}
-	lockerCtxValue struct {
-		onUnlock   sync.Once
-		Connection Connection
-		done       bool
-		cancel     func()
-		ctx        context.Context
-	}
-)
+var lockctx contextkit.ValueHandler[ctxKeyLock, *lockerContext]
 
-func (lck *lockerCtxValue) Unclock(ctx context.Context) (rerr error) {
+type ctxKeyLock struct{}
+
+type lockerContext struct {
+	onUnlock sync.Once
+	tx       pgx.Tx
+
+	Connection Connection
+	cancel     func()
+	ctx        context.Context
+}
+
+func (lck *lockerContext) Unclock(ctx context.Context) (rerr error) {
 	lck.onUnlock.Do(func() {
-		if err := lck.Connection.RollbackTx(lck.ctx); err != nil {
+		if err := lck.tx.Rollback(lck.ctx); err != nil {
 			if driver.ErrBadConn == err && ctx.Err() != nil {
 				rerr = ctx.Err()
 				return
@@ -89,6 +119,24 @@ func (lck *lockerCtxValue) Unclock(ctx context.Context) (rerr error) {
 		lck.cancel()
 	})
 	return rerr
+}
+
+func (l Locker) lockContext(ctx context.Context, tx pgx.Tx) context.Context {
+	ctx, cancel := context.WithCancel(ctx)
+	lck := &lockerContext{
+		ctx:        ctx,
+		cancel:     cancel,
+		Connection: l.Connection,
+		tx:         tx,
+	}
+	context.AfterFunc(ctx, func() {
+		_ = lck.Unclock(ctx)
+	})
+	return lockctx.ContextWith(ctx, lck)
+}
+
+func (l Locker) beginLockTx(ctx context.Context) (pgx.Tx, error) {
+	return l.Connection.DB.Begin(ctx)
 }
 
 const queryCreateLockerTable = `
@@ -109,11 +157,6 @@ func (l Locker) Migrate(ctx context.Context) error {
 	}).Migrate(ctx)
 }
 
-func (l Locker) lookup(ctx context.Context) (*lockerCtxValue, bool) {
-	v, ok := ctx.Value(lockerCtxKey{}).(*lockerCtxValue)
-	return v, ok
-}
-
 type LockerFactory[Key comparable] struct{ Connection Connection }
 
 func (lf LockerFactory[Key]) Migrate(ctx context.Context) error {
@@ -121,5 +164,9 @@ func (lf LockerFactory[Key]) Migrate(ctx context.Context) error {
 }
 
 func (lf LockerFactory[Key]) LockerFor(key Key) guard.Locker {
+	return Locker{Name: fmt.Sprintf("%T:%v", key, key), Connection: lf.Connection}
+}
+
+func (lf LockerFactory[Key]) NonBlockingLockerFor(key Key) guard.NonBlockingLocker {
 	return Locker{Name: fmt.Sprintf("%T:%v", key, key), Connection: lf.Connection}
 }

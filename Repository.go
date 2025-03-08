@@ -251,13 +251,7 @@ func (r Repository[ENT, ID]) Update(ctx context.Context, ptr *ENT) (rErr error) 
 func (r Repository[ENT, ID]) FindAll(ctx context.Context) (iterkit.ErrIter[ENT], error) {
 	cols, scan := r.Mapping.ToQuery(ctx)
 	query := fmt.Sprintf(`SELECT %s FROM %s`, r.quotedColumnsClause(cols), r.Mapping.TableName)
-
-	rows, err := r.Connection.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-
-	return flsql.MakeRowsIterator[ENT](rows, scan), nil
+	return flsql.QueryMany(r.Connection, ctx, scan.Map, query)
 }
 
 func (r Repository[ENT, ID]) FindByIDs(ctx context.Context, ids ...ID) (iterkit.ErrIter[ENT], error) {
@@ -294,12 +288,7 @@ func (r Repository[ENT, ID]) FindByIDs(ctx context.Context, ids ...ID) (iterkit.
 		return nil, crud.ErrNotFound
 	}
 
-	rows, err := r.Connection.QueryContext(ctx, query, queryArgs...)
-	if err != nil {
-		return nil, err
-	}
-
-	return flsql.MakeRowsIterator[ENT](rows, scan), nil
+	return flsql.QueryMany(r.Connection, ctx, scan.Map, query, queryArgs...)
 }
 
 // Upsert

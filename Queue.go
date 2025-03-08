@@ -11,6 +11,7 @@ import (
 	"go.llib.dev/frameless/pkg/contextkit"
 	"go.llib.dev/frameless/pkg/dtokit"
 	"go.llib.dev/frameless/pkg/flsql"
+	"go.llib.dev/frameless/pkg/iterkit"
 	"go.llib.dev/frameless/port/migration"
 	"go.llib.dev/frameless/port/pubsub"
 	"go.llib.dev/testcase/clock"
@@ -119,10 +120,10 @@ func (q Queue[Entity, JSONDTO]) Subscribe(ctx context.Context) (pubsub.Subscript
 	if err := q.Connection.DB.Ping(ctx); err != nil {
 		return nil, err
 	}
-	return &queueSubscription[Entity, JSONDTO]{
+	return iterkit.FromPullIter(&queueSubscription[Entity, JSONDTO]{
 		Queue: q,
 		CTX:   ctx,
-	}, nil
+	}), nil
 }
 
 type queueSubscription[Entity, JSONDTO any] struct {

@@ -8,6 +8,7 @@ import (
 
 	"go.llib.dev/frameless/pkg/errorkit"
 	"go.llib.dev/frameless/pkg/flsql"
+	"go.llib.dev/frameless/pkg/iterkit"
 	"go.llib.dev/frameless/pkg/logger"
 	"go.llib.dev/frameless/pkg/logging"
 	"go.llib.dev/frameless/pkg/mapkit"
@@ -15,7 +16,6 @@ import (
 	"go.llib.dev/frameless/port/comproto"
 	"go.llib.dev/frameless/port/crud"
 	"go.llib.dev/frameless/port/crud/extid"
-	"go.llib.dev/frameless/port/iterators"
 )
 
 // Repository is a frameless external resource supplier to store a certain entity type.
@@ -248,7 +248,7 @@ func (r Repository[ENT, ID]) Update(ctx context.Context, ptr *ENT) (rErr error) 
 	return nil
 }
 
-func (r Repository[ENT, ID]) FindAll(ctx context.Context) (iterators.Iterator[ENT], error) {
+func (r Repository[ENT, ID]) FindAll(ctx context.Context) (iterkit.ErrIter[ENT], error) {
 	cols, scan := r.Mapping.ToQuery(ctx)
 	query := fmt.Sprintf(`SELECT %s FROM %s`, r.quotedColumnsClause(cols), r.Mapping.TableName)
 
@@ -257,12 +257,12 @@ func (r Repository[ENT, ID]) FindAll(ctx context.Context) (iterators.Iterator[EN
 		return nil, err
 	}
 
-	return flsql.MakeSQLRowsIterator[ENT](rows, scan), nil
+	return flsql.MakeRowsIterator[ENT](rows, scan), nil
 }
 
-func (r Repository[ENT, ID]) FindByIDs(ctx context.Context, ids ...ID) (iterators.Iterator[ENT], error) {
+func (r Repository[ENT, ID]) FindByIDs(ctx context.Context, ids ...ID) (iterkit.ErrIter[ENT], error) {
 	if len(ids) == 0 {
-		return iterators.Empty[ENT](), nil
+		return iterkit.Empty2[ENT, error](), nil
 	}
 
 	var (
@@ -299,7 +299,7 @@ func (r Repository[ENT, ID]) FindByIDs(ctx context.Context, ids ...ID) (iterator
 		return nil, err
 	}
 
-	return flsql.MakeSQLRowsIterator[ENT](rows, scan), nil
+	return flsql.MakeRowsIterator[ENT](rows, scan), nil
 }
 
 // Upsert
